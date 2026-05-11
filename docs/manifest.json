@@ -1,0 +1,16 @@
+{
+  "name": "ESP32-C6 Zigbee Router + Presence Sensor",
+  "version": "1.0.0",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-C6",
+      "parts": [
+        {
+          "path": "https://github.com/YOUR_GITHUB_USERNAME/esp32c6-zigbee-router/releases/latest/download/firmware-merged.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}
