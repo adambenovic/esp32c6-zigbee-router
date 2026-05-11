@@ -9,8 +9,9 @@
 
 static const char *TAG = "wifi_sniffer";
 
-static volatile int64_t s_last_activity = 0;
-static volatile bool    s_ever_seen     = false;
+static volatile int64_t  s_last_activity = 0;
+static volatile bool     s_ever_seen     = false;
+static volatile uint32_t s_rx_total      = 0; /* all frames, any type */
 
 bool wifi_sniffer_occupancy_check(bool ever_seen, int64_t now_us, int64_t last_us) {
     if (!ever_seen) return false;
@@ -18,6 +19,7 @@ bool wifi_sniffer_occupancy_check(bool ever_seen, int64_t now_us, int64_t last_u
 }
 
 static void promiscuous_rx_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
+    s_rx_total++;
     if (type != WIFI_PKT_MGMT) return;
     const wifi_promiscuous_pkt_t *pkt = (const wifi_promiscuous_pkt_t *)buf;
     uint8_t subtype = (pkt->payload[0] >> 4) & 0x0F;
@@ -40,6 +42,10 @@ void wifi_sniffer_init(void) {
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_start());
     ESP_ERROR_CHECK(esp_wifi_set_promiscuous(true));
+    wifi_promiscuous_filter_t filter = {
+        .filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT,
+    };
+    ESP_ERROR_CHECK(esp_wifi_set_promiscuous_filter(&filter));
     ESP_ERROR_CHECK(esp_wifi_set_promiscuous_rx_cb(promiscuous_rx_cb));
     ESP_LOGI(TAG, "initialized, scanning channels %d-%d",
              WIFI_CHANNEL_MIN, WIFI_CHANNEL_MAX);
@@ -66,7 +72,8 @@ void wifi_sniffer_eval_task(void *arg) {
         vTaskDelay(pdMS_TO_TICKS(WIFI_EVAL_INTERVAL_MS));
         int64_t now      = esp_timer_get_time();
         bool    occupied = wifi_sniffer_occupancy_check(s_ever_seen, now, s_last_activity);
-        ESP_LOGI(TAG, "eval: ever_seen=%d occupied=%d", s_ever_seen, occupied);
+        ESP_LOGI(TAG, "eval: rx_total=%lu ever_seen=%d occupied=%d",
+                 s_rx_total, s_ever_seen, occupied);
         if (occupied == prev_occupied) continue;
 
         prev_occupied = occupied;
