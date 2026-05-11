@@ -228,6 +228,7 @@ void zigbee_init(void) {
         .nwk_cfg.zczr_cfg.max_children = 10,
     };
     esp_zb_init(&zb_cfg);
+    esp_zb_set_primary_network_channel_set(ESP_ZB_TRANSCEIVER_ALL_CHANNELS_MASK);
     create_endpoints();
     esp_zb_core_action_handler_register(zb_action_handler);
 }
