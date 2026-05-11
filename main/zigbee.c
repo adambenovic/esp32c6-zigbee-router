@@ -5,7 +5,7 @@
 #include "nvs_flash.h"
 #include "esp_log.h"
 #include "esp_zigbee_core.h"
-#include "esp_zigbee_ha_standard.h"
+#include "ha/esp_zigbee_ha_standard.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -13,6 +13,9 @@ static const char *TAG = "zigbee";
 #define NVS_NS        "led_state"
 #define NVS_KEY_LEVEL "level"
 #define NVS_KEY_ON    "on"
+
+/* HA Occupancy Sensor device ID (0x0107 per ZHA spec) */
+#define ESP_ZB_HA_OCCUPANCY_SENSOR_DEVICE_ID 0x0107U
 
 /* ── NVS helpers ─────────────────────────────────────────── */
 
@@ -37,6 +40,12 @@ static void nvs_load_led(uint8_t *level, bool *on) {
     nvs_close(h);
 }
 
+/* ── Scheduler callback wrappers ─────────────────────────── */
+
+static void bdb_start_commissioning_cb(uint8_t mode_mask) {
+    esp_zb_bdb_start_top_level_commissioning(mode_mask);
+}
+
 /* ── Occupancy report ────────────────────────────────────── */
 
 void zigbee_report_occupancy(bool occupied) {
@@ -53,8 +62,7 @@ void zigbee_report_occupancy(bool occupied) {
         .zcl_basic_cmd.src_endpoint = 1,
         .address_mode = ESP_ZB_APS_ADDR_MODE_DST_ADDR_ENDP_NOT_PRESENT,
         .clusterID    = ESP_ZB_ZCL_CLUSTER_ID_OCCUPANCY_SENSING,
-        .cluster_role = ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
-        .attrID       = ESP_ZB_ZCL_ATTR_OCCUPANCY_SENSING_OCCUPANCY_ID,
+        .attributeID  = ESP_ZB_ZCL_ATTR_OCCUPANCY_SENSING_OCCUPANCY_ID,
     };
     esp_zb_zcl_report_attr_cmd_req(&cmd);
     esp_zb_lock_release();
@@ -67,7 +75,7 @@ static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t cb_id, const
 
     const esp_zb_zcl_set_attr_value_message_t *m =
         (const esp_zb_zcl_set_attr_value_message_t *)msg;
-    if (m->info.dst.endpoint != 2) return ESP_OK;
+    if (m->info.dst_endpoint != 2) return ESP_OK;
 
     if (m->info.cluster == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF) {
         bool on = *(bool *)m->attribute.data.value;
@@ -91,7 +99,7 @@ static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t cb_id, const
 
 /* ── Signal handler ──────────────────────────────────────── */
 
-static void zb_signal_handler(esp_zb_app_signal_t *signal_s) {
+void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_s) {
     esp_zb_app_signal_type_t sig = *(esp_zb_app_signal_type_t *)signal_s->p_app_signal;
     esp_err_t err = signal_s->esp_err_status;
 
@@ -110,8 +118,7 @@ static void zb_signal_handler(esp_zb_app_signal_t *signal_s) {
                 esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_STEERING);
             } else {
                 ESP_LOGW(TAG, "Init failed, retrying");
-                esp_zb_scheduler_alarm(
-                    (esp_zb_callback_t)esp_zb_bdb_start_top_level_commissioning,
+                esp_zb_scheduler_alarm(bdb_start_commissioning_cb,
                     ESP_ZB_BDB_MODE_INITIALIZATION, 1000);
             }
             break;
@@ -131,8 +138,7 @@ static void zb_signal_handler(esp_zb_app_signal_t *signal_s) {
                 led_set_mode(LED_MODE_ZHA);
             } else {
                 ESP_LOGW(TAG, "Steering failed, retrying");
-                esp_zb_scheduler_alarm(
-                    (esp_zb_callback_t)esp_zb_bdb_start_top_level_commissioning,
+                esp_zb_scheduler_alarm(bdb_start_commissioning_cb,
                     ESP_ZB_BDB_MODE_NETWORK_STEERING, 1000);
             }
             break;
@@ -159,9 +165,9 @@ static void create_endpoints(void) {
 
     esp_zb_occupancy_sensing_cluster_cfg_t occ_cfg = {
         .occupancy = 0,
-        .occupancy_sensor_type =
+        .sensor_type =
             ESP_ZB_ZCL_OCCUPANCY_SENSING_OCCUPANCY_SENSOR_TYPE_ULTRASONIC,
-        .occupancy_sensor_type_bitmap = 0x02,
+        .sensor_type_bitmap = 0x02,
     };
     esp_zb_cluster_list_add_occupancy_sensing_cluster(ep1,
         esp_zb_occupancy_sensing_cluster_create(&occ_cfg),
@@ -207,12 +213,20 @@ static void create_endpoints(void) {
 
 void zigbee_init(void) {
     esp_zb_platform_config_t config = {
-        .radio_config = ESP_ZB_DEFAULT_RADIO_CONFIG(),
-        .host_config  = ESP_ZB_DEFAULT_HOST_CONFIG(),
+        .radio_config = {
+            .radio_mode = ZB_RADIO_MODE_NATIVE,
+        },
+        .host_config = {
+            .host_connection_mode = ZB_HOST_CONNECTION_MODE_NONE,
+        },
     };
     ESP_ERROR_CHECK(esp_zb_platform_config(&config));
 
-    esp_zb_cfg_t zb_cfg = ESP_ZB_ZR_CONFIG();
+    esp_zb_cfg_t zb_cfg = {
+        .esp_zb_role = ESP_ZB_DEVICE_TYPE_ROUTER,
+        .install_code_policy = false,
+        .nwk_cfg.zczr_cfg.max_children = 10,
+    };
     esp_zb_init(&zb_cfg);
     create_endpoints();
     esp_zb_core_action_handler_register(zb_action_handler);
