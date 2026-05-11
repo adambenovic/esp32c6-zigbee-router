@@ -43,9 +43,15 @@ void wifi_sniffer_init(void) {
 void wifi_sniffer_channel_hop_task(void *arg) {
     uint8_t ch = WIFI_CHANNEL_MIN;
     while (1) {
-        esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+        xSemaphoreTake(g_state_mutex, portMAX_DELAY);
+        bool joined = g_app_state.zigbee_joined;
+        xSemaphoreGive(g_state_mutex);
+
+        if (joined) {
+            esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+            ch = (ch >= WIFI_CHANNEL_MAX) ? WIFI_CHANNEL_MIN : ch + 1;
+        }
         vTaskDelay(pdMS_TO_TICKS(WIFI_CHANNEL_DWELL_MS));
-        ch = (ch >= WIFI_CHANNEL_MAX) ? WIFI_CHANNEL_MIN : ch + 1;
     }
 }
 
