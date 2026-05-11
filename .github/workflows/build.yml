@@ -60,11 +60,13 @@ jobs:
 
       - name: Publish firmware to GitHub Pages docs/
         run: |
+          VERSION=${GITHUB_REF_NAME#v}
           cp firmware-merged.bin docs/firmware-merged.bin
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" docs/manifest.json
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/firmware-merged.bin
-          git diff --cached --quiet || git commit -m "chore: update firmware for web flasher [skip ci]"
+          git add docs/firmware-merged.bin docs/manifest.json
+          git diff --cached --quiet || git commit -m "chore: update firmware to $VERSION for web flasher [skip ci]"
           git push origin master
 
       - name: Attach firmware to GitHub Release
