@@ -22,7 +22,12 @@ static void promiscuous_rx_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
     const wifi_promiscuous_pkt_t *pkt = (const wifi_promiscuous_pkt_t *)buf;
     uint8_t subtype = (pkt->payload[0] >> 4) & 0x0F;
     if (subtype == 0x04) { /* probe request */
-        s_last_activity = esp_timer_get_time();
+        int64_t now = esp_timer_get_time();
+        /* rate-limit log to once per 5 s */
+        if (now - s_last_activity > 5000000LL || !s_ever_seen) {
+            ESP_LOGI(TAG, "probe request received (ch %u)", pkt->rx_ctrl.channel);
+        }
+        s_last_activity = now;
         s_ever_seen     = true;
     }
 }
@@ -61,6 +66,7 @@ void wifi_sniffer_eval_task(void *arg) {
         vTaskDelay(pdMS_TO_TICKS(WIFI_EVAL_INTERVAL_MS));
         int64_t now      = esp_timer_get_time();
         bool    occupied = wifi_sniffer_occupancy_check(s_ever_seen, now, s_last_activity);
+        ESP_LOGI(TAG, "eval: ever_seen=%d occupied=%d", s_ever_seen, occupied);
         if (occupied == prev_occupied) continue;
 
         prev_occupied = occupied;
