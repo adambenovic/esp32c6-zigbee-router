@@ -133,9 +133,9 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_s) {
                 uint8_t level;
                 bool on;
                 nvs_load_led(&level, &on);
+                led_set_mode(LED_MODE_ZHA);
                 led_set_level(level);
                 led_set_on(on);
-                led_set_mode(LED_MODE_ZHA);
             } else {
                 ESP_LOGW(TAG, "Steering failed, retrying");
                 esp_zb_scheduler_alarm(bdb_start_commissioning_cb,
