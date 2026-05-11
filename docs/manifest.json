@@ -7,7 +7,7 @@
       "chipFamily": "ESP32-C6",
       "parts": [
         {
-          "path": "https://github.com/YOUR_GITHUB_USERNAME/esp32c6-zigbee-router/releases/latest/download/firmware-merged.bin",
+          "path": "https://github.com/adambenovic/esp32c6-zigbee-router/releases/latest/download/firmware-merged.bin",
           "offset": 0
         }
       ]

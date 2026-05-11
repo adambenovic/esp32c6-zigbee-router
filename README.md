@@ -8,7 +8,7 @@ Firmware for the [Seeed XIAO ESP32-C6](https://wiki.seeedstudio.com/xiao_esp32c6
 
 ## Flash from browser (no tools required)
 
-Visit the [web flasher](https://YOUR_GITHUB_USERNAME.github.io/esp32c6-zigbee-router/) in Chrome or Edge with your XIAO connected via USB-C.
+Visit the [web flasher](https://adambenovic.github.io/esp32c6-zigbee-router/) in Chrome or Edge with your XIAO connected via USB-C.
 
 ## Flash with esptool (CLI)
 
@@ -17,14 +17,14 @@ pip install esptool
 esptool.py --chip esp32c6 write_flash 0x0 firmware-merged.bin
 ```
 
-Download `firmware-merged.bin` from [Releases](https://github.com/YOUR_GITHUB_USERNAME/esp32c6-zigbee-router/releases).
+Download `firmware-merged.bin` from [Releases](https://github.com/adambenovic/esp32c6-zigbee-router/releases).
 
 ## Build from source
 
 Requires Docker.
 
 ```bash
-git clone https://github.com/YOUR_GITHUB_USERNAME/esp32c6-zigbee-router
+git clone https://github.com/adambenovic/esp32c6-zigbee-router
 cd esp32c6-zigbee-router
 make build
 make flash PORT=/dev/ttyACM0
