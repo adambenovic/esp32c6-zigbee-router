@@ -14,9 +14,6 @@ static const char *TAG = "zigbee";
 #define NVS_KEY_LEVEL "level"
 #define NVS_KEY_ON    "on"
 
-/* HA Occupancy Sensor device ID (0x0107 per ZHA spec) */
-#define ESP_ZB_HA_OCCUPANCY_SENSOR_DEVICE_ID 0x0107U
-
 /* ── NVS helpers ─────────────────────────────────────────── */
 
 static void nvs_save_led(uint8_t level, bool on) {
@@ -46,28 +43,6 @@ static void bdb_start_commissioning_cb(uint8_t mode_mask) {
     esp_zb_bdb_start_top_level_commissioning(mode_mask);
 }
 
-/* ── Occupancy report ────────────────────────────────────── */
-
-void zigbee_report_occupancy(bool occupied) {
-    uint8_t val = occupied ? 1 : 0;
-    esp_zb_lock_acquire(portMAX_DELAY);
-    esp_zb_zcl_set_attribute_val(
-        1,
-        ESP_ZB_ZCL_CLUSTER_ID_OCCUPANCY_SENSING,
-        ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
-        ESP_ZB_ZCL_ATTR_OCCUPANCY_SENSING_OCCUPANCY_ID,
-        &val, false);
-
-    esp_zb_zcl_report_attr_cmd_t cmd = {
-        .zcl_basic_cmd.src_endpoint = 1,
-        .address_mode = ESP_ZB_APS_ADDR_MODE_DST_ADDR_ENDP_NOT_PRESENT,
-        .clusterID    = ESP_ZB_ZCL_CLUSTER_ID_OCCUPANCY_SENSING,
-        .attributeID  = ESP_ZB_ZCL_ATTR_OCCUPANCY_SENSING_OCCUPANCY_ID,
-    };
-    esp_zb_zcl_report_attr_cmd_req(&cmd);
-    esp_zb_lock_release();
-}
-
 /* ── ZHA → LED action handler ────────────────────────────── */
 
 static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t cb_id, const void *msg) {
@@ -75,7 +50,7 @@ static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t cb_id, const
 
     const esp_zb_zcl_set_attr_value_message_t *m =
         (const esp_zb_zcl_set_attr_value_message_t *)msg;
-    if (m->info.dst_endpoint != 2) return ESP_OK;
+    if (m->info.dst_endpoint != 1) return ESP_OK;
 
     if (m->info.cluster == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF) {
         bool on = *(bool *)m->attribute.data.value;
@@ -157,23 +132,7 @@ static void create_endpoints(void) {
         .power_source = 0x01, /* mains */
     };
 
-    /* EP1 — Occupancy Sensor */
-    esp_zb_cluster_list_t *ep1 = esp_zb_zcl_cluster_list_create();
-    esp_zb_cluster_list_add_basic_cluster(ep1,
-        esp_zb_basic_cluster_create(&basic_cfg),
-        ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
-
-    esp_zb_occupancy_sensing_cluster_cfg_t occ_cfg = {
-        .occupancy = 0,
-        .sensor_type =
-            ESP_ZB_ZCL_OCCUPANCY_SENSING_OCCUPANCY_SENSOR_TYPE_ULTRASONIC,
-        .sensor_type_bitmap = 0x02,
-    };
-    esp_zb_cluster_list_add_occupancy_sensing_cluster(ep1,
-        esp_zb_occupancy_sensing_cluster_create(&occ_cfg),
-        ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
-
-    /* EP2 — Dimmable Light */
+    /* EP1 — Dimmable Light */
     esp_zb_cluster_list_t *ep2 = esp_zb_zcl_cluster_list_create();
     esp_zb_cluster_list_add_basic_cluster(ep2,
         esp_zb_basic_cluster_create(&basic_cfg),
@@ -192,15 +151,8 @@ static void create_endpoints(void) {
     /* Register */
     esp_zb_ep_list_t *ep_list = esp_zb_ep_list_create();
 
-    esp_zb_ep_list_add_ep(ep_list, ep1, (esp_zb_endpoint_config_t){
-        .endpoint        = 1,
-        .app_profile_id  = ESP_ZB_AF_HA_PROFILE_ID,
-        .app_device_id   = ESP_ZB_HA_OCCUPANCY_SENSOR_DEVICE_ID,
-        .app_device_version = 0,
-    });
-
     esp_zb_ep_list_add_ep(ep_list, ep2, (esp_zb_endpoint_config_t){
-        .endpoint        = 2,
+        .endpoint        = 1,
         .app_profile_id  = ESP_ZB_AF_HA_PROFILE_ID,
         .app_device_id   = ESP_ZB_HA_DIMMABLE_LIGHT_DEVICE_ID,
         .app_device_version = 0,
